@@ -54,6 +54,9 @@ namespace Reverb.Models
         [JsonProperty("restrictions")]
         public Dictionary<string, string> Restrictions { get; set; }
 
+        [JsonProperty("tracks")]
+        public SpotifyPagingObject<SpotifyTrack> Tracks { get; set; }
+
         [JsonProperty("type")]
         public string Type { get; set; }
 

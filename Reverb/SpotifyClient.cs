@@ -110,20 +110,87 @@ namespace Reverb
             return (await MakeAuthorizedSpotifyRequest<SpotifyDevicesResponse>(url, HttpMethod.Get)).Devices;
         }
 
+        public async Task Play(string deviceId = null)
+        {
+            await Play(deviceId, null, null, string.Empty, null);
+        }
+
+        public async Task Play(string deviceId = null,
+            string contextUri = null)
+        {
+            await Play(deviceId, contextUri, null, string.Empty, null);
+        }
+
         public async Task Play(string deviceId = null,
             string contextUri = null,
             List<string> uris = null,
-            JObject offset = null,
+            int? offset = null,
             int? position = null)
         {
             Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
                 .AppendPathSegments("me", "player", "play")
                 .SetQueryParam("device_id", deviceId);
+            JObject bodyParams = SetPlayBodyParams(contextUri, uris, position);
+            SetOffset(offset, bodyParams);
+            await Play(url, bodyParams);
+        }
+
+        public async Task Play(string deviceId = null,
+            string contextUri = null,
+            List<string> uris = null,
+            string offset = null,
+            int? position = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("me", "player", "play")
+                .SetQueryParam("device_id", deviceId);
+            JObject bodyParams = SetPlayBodyParams(contextUri, uris, position);
+            SetOffset(offset, bodyParams);
+            await Play(url, bodyParams);
+        }
+
+        private JObject SetPlayBodyParams(string contextUri = null,
+            List<string> uris = null,
+            int? position = null)
+        {
             JObject bodyParams = new JObject();
             if (contextUri != null)
             {
                 bodyParams["context_uri"] = contextUri;
             }
+            if (uris != null)
+            {
+                bodyParams["uris"] = new JArray(uris);
+            }
+            if (position.HasValue)
+            {
+                bodyParams["position_ms"] = position.Value;
+            }
+            return bodyParams;
+        }
+
+        private void SetOffset(int? offset, JObject bodyParams)
+        {
+            if (offset.HasValue)
+            {
+                JObject position = new JObject();
+                position["position"] = offset;
+                bodyParams["offset"] = position;
+            }
+        }
+
+        private void SetOffset(string offset, JObject bodyParams)
+        {
+            if (!string.IsNullOrEmpty(offset))
+            {
+                JObject uri = new JObject();
+                uri["uri"] = offset;
+                bodyParams["offset"] = uri;
+            }
+        }
+
+        private async Task Play(Url url, JObject bodyParams)
+        {
             await MakeAuthorizedSpotifyPut(url, new StringContent(bodyParams.ToString()));
         }
 
