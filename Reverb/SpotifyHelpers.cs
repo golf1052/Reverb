@@ -88,6 +88,54 @@ namespace Reverb
             }
         }
 
+        public static string SpotifySearchTypeToString(SpotifyConstants.SpotifySearchTypes searchType)
+        {
+            if (searchType == SpotifyConstants.SpotifySearchTypes.Album)
+            {
+                return "album";
+            }
+            else if (searchType == SpotifyConstants.SpotifySearchTypes.Artist)
+            {
+                return "artist";
+            }
+            else if (searchType == SpotifyConstants.SpotifySearchTypes.Playlist)
+            {
+                return "playlist";
+            }
+            else if (searchType == SpotifyConstants.SpotifySearchTypes.Track)
+            {
+                return "track";
+            }
+            else
+            {
+                return "unknown-type";
+            }
+        }
+
+        public static string SpotifyArtistIncludeGroupsToString(SpotifyConstants.SpotifyArtistIncludeGroups includeGroup)
+        {
+            if (includeGroup == SpotifyConstants.SpotifyArtistIncludeGroups.Album)
+            {
+                return "album";
+            }
+            else if (includeGroup == SpotifyConstants.SpotifyArtistIncludeGroups.Single)
+            {
+                return "single";
+            }
+            else if (includeGroup == SpotifyConstants.SpotifyArtistIncludeGroups.AppearsOn)
+            {
+                return "appears_on";
+            }
+            else if (includeGroup == SpotifyConstants.SpotifyArtistIncludeGroups.Compilation)
+            {
+                return "compilation";
+            }
+            else
+            {
+                return "unknown-include-group";
+            }
+        }
+
         public static string GetAuthorizeUrl(string clientId,
             string redirectUri,
             List<SpotifyConstants.SpotifyScopes> scopes = null,

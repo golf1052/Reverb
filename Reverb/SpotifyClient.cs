@@ -94,6 +94,15 @@ namespace Reverb
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(response.TokenType, AccessToken);
         }
 
+        public async Task<SpotifyAlbum> GetAlbum(string id, string market = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("albums", id)
+                .SetQueryParam("market", market);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyAlbum>(url, HttpMethod.Get);
+        }
+
         public async Task<SpotifyPagingObject<SpotifySavedAlbum>> GetUserSavedAlbums(int limit = 20, int offset = 0, string market = null)
         {
             Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
@@ -102,12 +111,76 @@ namespace Reverb
             return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<SpotifySavedAlbum>>(url, HttpMethod.Get);
         }
 
+        public async Task<SpotifyArtist> GetArtist(string id)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("artists", id);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyArtist>(url, HttpMethod.Get);
+        }
+
+        public async Task<SpotifyPagingObject<SpotifyAlbum>> GetArtistsAlbums(string id,
+            List<SpotifyConstants.SpotifyArtistIncludeGroups> includeGroups = null,
+            string market = null,
+            int? limit = null,
+            int? offset = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("artists", id, "albums");
+            if (includeGroups != null)
+            {
+                url.SetQueryParam("include_groups", string
+                    .Join(",", includeGroups.Select(includeGroup => SpotifyHelpers.SpotifyArtistIncludeGroupsToString(includeGroup))));
+            }
+            url.SetQueryParam("market", market)
+                .SetQueryParam("limit", limit)
+                .SetQueryParam("offset", offset);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<SpotifyAlbum>>(url, HttpMethod.Get);
+        }
+
+        public async Task<List<SpotifyTrack>> GetArtistsTopTracks(string id, string market)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("artists", id, "top-tracks")
+                .SetQueryParam("market", market);
+
+            return (await MakeAuthorizedSpotifyRequest<SpotifyArtistTopTracksResponse>(url, HttpMethod.Get)).Tracks;
+        }
+
+        public async Task<List<SpotifyArtist>> GetArtistsRelatedArtists(string id)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("artists", id, "related-artists");
+
+            return (await MakeAuthorizedSpotifyRequest<SpotifyArtistsResponse>(url, HttpMethod.Get)).Artists;
+        }
+
+        public async Task<List<SpotifyArtist>> GetArtists(List<string> ids)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegment("artists")
+                .SetQueryParams("ids", string.Join(",", ids));
+
+            return (await MakeAuthorizedSpotifyRequest<SpotifyArtistsResponse>(url, HttpMethod.Get)).Artists;
+        }
+
         public async Task<List<SpotifyDevice>> GetUserDevices()
         {
             Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
                 .AppendPathSegments("me", "player", "devices");
 
             return (await MakeAuthorizedSpotifyRequest<SpotifyDevicesResponse>(url, HttpMethod.Get)).Devices;
+        }
+
+        public async Task SetVolume(int volumePercent, string deviceId = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("me", "player", "volume")
+                .SetQueryParam("volume_percent", volumePercent)
+                .SetQueryParam("device_id", deviceId);
+
+            await MakeAuthorizedSpotifyPut(url, null);
         }
 
         public async Task Play(string deviceId = null)
@@ -253,6 +326,23 @@ namespace Reverb
             await MakeAuthorizedSpotifyPut(url, new StringContent(bodyParams.ToString()));
         }
 
+        public async Task<SpotifySearch> Search(string query,
+            List<SpotifyConstants.SpotifySearchTypes> type,
+            string market = null,
+            int? limit = null,
+            int? offset = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegment("search")
+                .SetQueryParam("q", query)
+                .SetQueryParam("type", string.Join(",", type.Select(t => SpotifyHelpers.SpotifySearchTypeToString(t))))
+                .SetQueryParam("market", market)
+                .SetQueryParam("limit", limit)
+                .SetQueryParam("offset", offset);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifySearch>(url, HttpMethod.Get);
+        }
+
         public async Task<SpotifyPagingObject<T>> GetNextPage<T>(SpotifyPagingObject<T> pagingObject)
         {
             return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<T>>(pagingObject.Next, HttpMethod.Get);
@@ -321,7 +411,6 @@ namespace Reverb
         private async Task MakeAuthorizedSpotifyPut(string url, HttpContent content)
         {
             HttpResponseMessage responseMessage = await httpClient.PutAsync(url, content);
-            Debug.WriteLine(await responseMessage.Content.ReadAsStringAsync());
             if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
             {
 
@@ -329,6 +418,11 @@ namespace Reverb
             else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NoContent)
             {
 
+            }
+            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                SpotifyErrorObject spotifyError = JsonConvert.DeserializeObject<SpotifyErrorObject>(await responseMessage.Content.ReadAsStringAsync());
+                throw new SpotifyException(spotifyError.Error);
             }
             else
             {

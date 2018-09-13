@@ -65,7 +65,7 @@ namespace Reverb.Models
 
         public SpotifyImage GetLargestImage()
         {
-            if (Images == null)
+            if (Images == null || Images.Count == 0)
             {
                 return null;
             }
@@ -74,7 +74,7 @@ namespace Reverb.Models
 
         public SpotifyImage GetSmallestImage()
         {
-            if (Images == null)
+            if (Images == null || Images.Count == 0)
             {
                 return null;
             }

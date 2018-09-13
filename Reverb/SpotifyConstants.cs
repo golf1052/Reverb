@@ -32,5 +32,21 @@ namespace Reverb
             UserFollowModify,
             UserFollowRead
         }
+
+        public enum SpotifySearchTypes
+        {
+            Album,
+            Artist,
+            Playlist,
+            Track
+        }
+
+        public enum SpotifyArtistIncludeGroups
+        {
+            Album,
+            Single,
+            AppearsOn,
+            Compilation
+        }
     }
 }

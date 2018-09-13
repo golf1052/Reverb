@@ -19,7 +19,7 @@ namespace Reverb.Models.WebPlayer
 
         public SpotifyWebImage GetLargestImage()
         {
-            if (Images == null)
+            if (Images == null || Images.Count == 0)
             {
                 return null;
             }
@@ -28,7 +28,7 @@ namespace Reverb.Models.WebPlayer
 
         public SpotifyWebImage GetSmallestImage()
         {
-            if (Images == null)
+            if (Images == null || Images.Count == 0)
             {
                 return null;
             }
