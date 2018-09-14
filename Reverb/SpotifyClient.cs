@@ -61,7 +61,7 @@ namespace Reverb
             await RequestAccessToken(code);
         }
 
-        private async Task RequestAccessToken(string code)
+        private async Task<string> RequestAccessToken(string code)
         {
             FormUrlEncodedContent tokenRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
@@ -73,10 +73,10 @@ namespace Reverb
                 SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
             HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl,
                 tokenRequestContent);
-            await ProcessAuthorizationResponse(responseMessage);
+            return await ProcessAuthorizationResponse(responseMessage);
         }
 
-        private async Task ProcessAuthorizationResponse(HttpResponseMessage responseMessage)
+        private async Task<string> ProcessAuthorizationResponse(HttpResponseMessage responseMessage)
         {
             if (!responseMessage.IsSuccessStatusCode)
             {
@@ -92,6 +92,20 @@ namespace Reverb
             }
             AccessToken = response.AccessToken;
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(response.TokenType, AccessToken);
+            return AccessToken;
+        }
+
+        public async Task<string> RefreshAccessToken()
+        {
+            FormUrlEncodedContent refreshRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
+            {
+                { "grant_type", "refresh_token" },
+                { "refresh_token", refreshToken }
+            });
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
+            HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl, refreshRequestContent);
+            return await ProcessAuthorizationResponse(responseMessage);
         }
 
         public async Task<SpotifyAlbum> GetAlbum(string id, string market = null)
@@ -401,6 +415,11 @@ namespace Reverb
             else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NoContent)
             {
 
+            }
+            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                SpotifyErrorObject spotifyError = JsonConvert.DeserializeObject<SpotifyErrorObject>(await responseMessage.Content.ReadAsStringAsync());
+                throw new SpotifyException(spotifyError.Error);
             }
             else
             {
