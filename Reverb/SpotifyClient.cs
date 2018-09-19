@@ -117,10 +117,13 @@ namespace Reverb
             return await MakeAuthorizedSpotifyRequest<SpotifyAlbum>(url, HttpMethod.Get);
         }
 
-        public async Task<SpotifyPagingObject<SpotifySavedAlbum>> GetUserSavedAlbums(int limit = 20, int offset = 0, string market = null)
+        public async Task<SpotifyPagingObject<SpotifySavedAlbum>> GetUserSavedAlbums(int? limit = null, int? offset = null, string market = null)
         {
             Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
-                .AppendPathSegments("me", "albums");
+                .AppendPathSegments("me", "albums")
+                .SetQueryParam("limit", limit)
+                .SetQueryParam("offset", offset)
+                .SetQueryParam("market", market);
 
             return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<SpotifySavedAlbum>>(url, HttpMethod.Get);
         }
@@ -179,6 +182,80 @@ namespace Reverb
             return (await MakeAuthorizedSpotifyRequest<SpotifyArtistsResponse>(url, HttpMethod.Get)).Artists;
         }
 
+        public async Task<SpotifyCategory> GetCategory(string categoryId, string country = null, string locale = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("browse", "categories", categoryId)
+                .SetQueryParam("country", country)
+                .SetQueryParam("locale", locale);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyCategory>(url, HttpMethod.Get);
+        }
+
+        public async Task<SpotifyPagingObject<SpotifyCategory>> GetCategories(string country = null,
+            string locale = null,
+            int? limit = null,
+            int? offset = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("browse", "categories")
+                .SetQueryParam("country", country)
+                .SetQueryParam("locale", locale)
+                .SetQueryParam("limit", limit)
+                .SetQueryParam("offset", offset);
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<SpotifyCategory>>(url, HttpMethod.Get);
+        }
+
+        public async Task<SpotifyPagingObject<SpotifyAlbum>> GetNewReleases(string country = null, int? limit = null, int? offset = null)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("browse", "new-releases")
+                .SetQueryParam("country", country)
+                .SetQueryParam("limit", limit)
+                .SetQueryParam("offset", offset);
+
+            return (await MakeAuthorizedSpotifyRequest<SpotifyNewReleasesResponse>(url, HttpMethod.Get)).Albums;
+        }
+
+        public async Task<List<bool>> GetSavedTracks(List<string> ids)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("me", "tracks", "contains")
+                .SetQueryParam("ids", string.Join(",", ids));
+
+            JArray results = JArray.Parse(await (await MakeAuthorizedSpotifyRequest(url, HttpMethod.Get)).Content.ReadAsStringAsync());
+            return results.Select(token => (bool)token).ToList();
+        }
+
+        public async Task RemoveTracks(List<string> ids)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("me", "tracks")
+                .SetQueryParam("ids", string.Join(",", ids));
+
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Delete, null);
+        }
+
+        public async Task RemoveTrack(string id)
+        {
+            await RemoveTracks(new List<string>() { id });
+        }
+
+        public async Task SaveTracks(List<string> ids)
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegments("me", "tracks")
+                .SetQueryParam("ids", string.Join(",", ids));
+
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Put, null);
+        }
+
+        public async Task SaveTrack(string id)
+        {
+            await SaveTracks(new List<string>() { id });
+        }
+
         public async Task<List<SpotifyDevice>> GetUserDevices()
         {
             Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
@@ -194,7 +271,7 @@ namespace Reverb
                 .SetQueryParam("volume_percent", volumePercent)
                 .SetQueryParam("device_id", deviceId);
 
-            await MakeAuthorizedSpotifyPut(url, null);
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Put, null);
         }
 
         public async Task Play(string deviceId = null)
@@ -278,7 +355,7 @@ namespace Reverb
 
         private async Task Play(Url url, JObject bodyParams)
         {
-            await MakeAuthorizedSpotifyPut(url, new StringContent(bodyParams.ToString()));
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Put, new StringContent(bodyParams.ToString()));
         }
 
         public async Task Pause(string deviceId = null)
@@ -287,7 +364,7 @@ namespace Reverb
                 .AppendPathSegments("me", "player", "pause")
                 .SetQueryParam("device_id", deviceId);
 
-            await MakeAuthorizedSpotifyPut(url, null);
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Put, null);
         }
 
         public async Task Next(string deviceId = null)
@@ -296,7 +373,7 @@ namespace Reverb
                 .AppendPathSegments("me", "player", "next")
                 .SetQueryParam("device_id", deviceId);
 
-            await MakeAuthorizedSpotifyPost(url, null);
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Post, null);
         }
 
         public async Task Previous(string deviceId = null)
@@ -305,7 +382,7 @@ namespace Reverb
                 .AppendPathSegments("me", "player", "previous")
                 .SetQueryParam("device_id", deviceId);
 
-            await MakeAuthorizedSpotifyPost(url, null);
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Post, null);
         }
 
         public async Task<SpotifyCurrentlyPlaying> GetCurrentlyPlayingPlayer(string market = null)
@@ -337,7 +414,7 @@ namespace Reverb
                 bodyParams["play"] = play.Value;
             }
 
-            await MakeAuthorizedSpotifyPut(url, new StringContent(bodyParams.ToString()));
+            await MakeAuthorizedSpotifyRequest(url, HttpMethod.Put, new StringContent(bodyParams.ToString()));
         }
 
         public async Task<SpotifySearch> Search(string query,
@@ -364,9 +441,10 @@ namespace Reverb
 
         private async Task<T> MakeAuthorizedSpotifyRequest<T>(string url, HttpMethod method)
         {
+            HttpResponseMessage responseMessage = await MakeAuthorizedSpotifyRequest(url, method);
+            //Debug.WriteLine(await responseMessage.Content.ReadAsStringAsync());
             if (method.Method == "GET")
             {
-                HttpResponseMessage responseMessage = await httpClient.GetAsync(url);
                 if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
                 {
                     return JsonConvert.DeserializeObject<T>(await responseMessage.Content.ReadAsStringAsync());
@@ -386,17 +464,14 @@ namespace Reverb
             }
             else if (method.Method == "PUT")
             {
-                HttpResponseMessage responseMessage = await httpClient.PutAsync(url, null);
                 return default(T);
             }
             else if (method.Method == "POST")
             {
-                HttpResponseMessage responseMessage = await httpClient.PostAsync(url, null);
                 return default(T);
             }
             else if (method.Method == "DELETE")
             {
-                HttpResponseMessage responseMessage = await httpClient.DeleteAsync(url);
                 return default(T);
             }
             else
@@ -405,47 +480,74 @@ namespace Reverb
             }
         }
 
-        private async Task MakeAuthorizedSpotifyPost(string url, HttpContent content)
+        private async Task<HttpResponseMessage> MakeAuthorizedSpotifyRequest(string url, HttpMethod method)
         {
-            HttpResponseMessage responseMessage = await httpClient.PostAsync(url, content);
-            if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
+            if (method.Method == "GET")
             {
-
+                HttpResponseMessage responseMessage = await httpClient.GetAsync(url);
+                if (responseMessage.IsSuccessStatusCode)
+                {
+                    return responseMessage;
+                }
+                else
+                {
+                    throw new Exception();
+                }
             }
-            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NoContent)
+            else if (method.Method == "PUT")
             {
-
+                HttpResponseMessage responseMessage = await httpClient.PutAsync(url, null);
+                return responseMessage;
             }
-            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            else if (method.Method == "POST")
             {
-                SpotifyErrorObject spotifyError = JsonConvert.DeserializeObject<SpotifyErrorObject>(await responseMessage.Content.ReadAsStringAsync());
-                throw new SpotifyException(spotifyError.Error);
+                HttpResponseMessage responseMessage = await httpClient.PostAsync(url, null);
+                return responseMessage;
+            }
+            else if (method.Method == "DELETE")
+            {
+                HttpResponseMessage responseMessage = await httpClient.DeleteAsync(url);
+                return responseMessage;
             }
             else
             {
-                throw new Exception();
+                throw new NotImplementedException();
             }
         }
 
-        private async Task MakeAuthorizedSpotifyPut(string url, HttpContent content)
+        private async Task MakeAuthorizedSpotifyRequest(string url, HttpMethod method, HttpContent content = null)
         {
-            HttpResponseMessage responseMessage = await httpClient.PutAsync(url, content);
-            if (responseMessage.StatusCode == System.Net.HttpStatusCode.OK)
+            HttpResponseMessage responseMessage;
+            if (method.Method == "PUT")
+            {
+                responseMessage = await httpClient.PutAsync(url, content);
+            }
+            else if (method.Method == "POST")
+            {
+                responseMessage = await httpClient.PostAsync(url, content);
+            }
+            else if (method.Method == "DELETE")
+            {
+                responseMessage = await httpClient.DeleteAsync(url);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+
+            if (responseMessage.IsSuccessStatusCode)
             {
 
             }
-            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NoContent)
-            {
-
-            }
-            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
+            else if (responseMessage.StatusCode == System.Net.HttpStatusCode.Forbidden ||
+                responseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 SpotifyErrorObject spotifyError = JsonConvert.DeserializeObject<SpotifyErrorObject>(await responseMessage.Content.ReadAsStringAsync());
                 throw new SpotifyException(spotifyError.Error);
             }
             else
             {
-                throw new Exception();
+                throw new NotImplementedException();
             }
         }
     }
