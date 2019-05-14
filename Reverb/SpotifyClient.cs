@@ -20,6 +20,7 @@ namespace Reverb
         private string clientSecret;
         private string redirectUrl;
         private string refreshToken;
+        private SpotifyConstants.AuthenticationType authenticationType;
         
         public string AccessToken { get; private set; }
         public DateTimeOffset AccessTokenExpiresAt { get; private set; }
@@ -30,6 +31,7 @@ namespace Reverb
             this.clientSecret = clientSecret;
             this.redirectUrl = redirectUrl;
             httpClient = new HttpClient();
+            authenticationType = SpotifyConstants.AuthenticationType.None;
         }
 
         public string GetAuthorizeUrl(List<SpotifyConstants.SpotifyScopes> scopes = null, string state = null)
@@ -61,6 +63,20 @@ namespace Reverb
             await RequestAccessToken(code);
         }
 
+        public async Task<string> RequestAccessToken()
+        {
+            FormUrlEncodedContent tokenRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
+            {
+                { "grant_type", "client_credentials" }
+            });
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
+            HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl,
+                tokenRequestContent);
+            authenticationType = SpotifyConstants.AuthenticationType.ClientCredentials;
+            return await ProcessAuthorizationResponse(responseMessage);
+        }
+
         private async Task<string> RequestAccessToken(string code)
         {
             FormUrlEncodedContent tokenRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
@@ -73,6 +89,7 @@ namespace Reverb
                 SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
             HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl,
                 tokenRequestContent);
+            authenticationType = SpotifyConstants.AuthenticationType.AuthorizationCode;
             return await ProcessAuthorizationResponse(responseMessage);
         }
 
@@ -97,15 +114,30 @@ namespace Reverb
 
         public async Task<string> RefreshAccessToken()
         {
-            FormUrlEncodedContent refreshRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
+            if (authenticationType == SpotifyConstants.AuthenticationType.None)
             {
-                { "grant_type", "refresh_token" },
-                { "refresh_token", refreshToken }
-            });
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
-            HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl, refreshRequestContent);
-            return await ProcessAuthorizationResponse(responseMessage);
+                throw new Exception("Client not authenticated yet.");
+            }
+            else if (authenticationType == SpotifyConstants.AuthenticationType.AuthorizationCode)
+            {
+                FormUrlEncodedContent refreshRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
+                {
+                    { "grant_type", "refresh_token" },
+                    { "refresh_token", refreshToken }
+                });
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                    SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
+                HttpResponseMessage responseMessage = await httpClient.PostAsync(SpotifyConstants.RequestAccessTokenUrl, refreshRequestContent);
+                return await ProcessAuthorizationResponse(responseMessage);
+            }
+            else if (authenticationType == SpotifyConstants.AuthenticationType.ClientCredentials)
+            {
+                return await RequestAccessToken();
+            }
+            else
+            {
+                throw new NotImplementedException("New authorization type not implemented");
+            }
         }
 
         public async Task<SpotifyAlbum> GetAlbum(string id, string market = null)

@@ -48,5 +48,12 @@ namespace Reverb
             AppearsOn,
             Compilation
         }
+
+        public enum AuthenticationType
+        {
+            AuthorizationCode,
+            ClientCredentials,
+            None
+        }
     }
 }
