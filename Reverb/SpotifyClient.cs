@@ -19,11 +19,11 @@ namespace Reverb
         private string clientId;
         private string clientSecret;
         private string redirectUrl;
-        private string refreshToken;
         private SpotifyConstants.AuthenticationType authenticationType;
         
         public string AccessToken { get; private set; }
         public DateTimeOffset AccessTokenExpiresAt { get; private set; }
+        public string RefreshToken { get; private set; }
 
         public SpotifyClient(string clientId, string clientSecret, string redirectUrl)
         {
@@ -32,6 +32,15 @@ namespace Reverb
             this.redirectUrl = redirectUrl;
             httpClient = new HttpClient();
             authenticationType = SpotifyConstants.AuthenticationType.None;
+        }
+
+        public async Task<string> Authenticate(string accessToken, DateTimeOffset accessTokenExpiresAt, string refreshToken)
+        {
+            AccessToken = accessToken;
+            AccessTokenExpiresAt = accessTokenExpiresAt;
+            RefreshToken = refreshToken;
+            authenticationType = SpotifyConstants.AuthenticationType.AuthorizationCode;
+            return await RefreshAccessToken();
         }
 
         public string GetAuthorizeUrl(List<SpotifyConstants.SpotifyScopes> scopes = null, string state = null)
@@ -77,7 +86,7 @@ namespace Reverb
             return await ProcessAuthorizationResponse(responseMessage);
         }
 
-        private async Task<string> RequestAccessToken(string code)
+        public async Task<string> RequestAccessToken(string code)
         {
             FormUrlEncodedContent tokenRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
             {
@@ -98,18 +107,25 @@ namespace Reverb
             if (!responseMessage.IsSuccessStatusCode)
             {
                 // TODO: error handling
-                throw new Exception();
+                throw new Exception(await responseMessage.Content.ReadAsStringAsync());
             }
             SpotifyAuthorizationResponse response = JsonConvert.DeserializeObject<SpotifyAuthorizationResponse>(
                 await responseMessage.Content.ReadAsStringAsync());
             AccessTokenExpiresAt = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(response.ExpiresIn);
             if (response.RefreshToken != null)
             {
-                refreshToken = response.RefreshToken;
+                RefreshToken = response.RefreshToken;
             }
             AccessToken = response.AccessToken;
             httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(response.TokenType, AccessToken);
             return AccessToken;
+        }
+
+        public async Task<string> RefreshAccessToken(string refreshToken)
+        {
+            authenticationType = SpotifyConstants.AuthenticationType.AuthorizationCode;
+            RefreshToken = refreshToken;
+            return await RefreshAccessToken();
         }
 
         public async Task<string> RefreshAccessToken()
@@ -123,7 +139,7 @@ namespace Reverb
                 FormUrlEncodedContent refreshRequestContent = new FormUrlEncodedContent(new Dictionary<string, string>()
                 {
                     { "grant_type", "refresh_token" },
-                    { "refresh_token", refreshToken }
+                    { "refresh_token", RefreshToken }
                 });
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
                     SpotifyHelpers.GetEncodedAuth(clientId, clientSecret));
@@ -516,15 +532,31 @@ namespace Reverb
         {
             if (method.Method == "GET")
             {
-                HttpResponseMessage responseMessage = await httpClient.GetAsync(url);
-                if (responseMessage.IsSuccessStatusCode)
+                while (true)
                 {
-                    return responseMessage;
+                    HttpResponseMessage responseMessage = await httpClient.GetAsync(url);
+                    if (responseMessage.IsSuccessStatusCode)
+                    {
+                        return responseMessage;
+                    }
+                    else if ((int)responseMessage.StatusCode == 429)
+                    {
+                        TimeSpan? timeToWait = responseMessage.Headers.RetryAfter.Delta;
+                        if (!timeToWait.HasValue)
+                        {
+                            await Task.Delay(TimeSpan.FromMinutes(1));
+                        }
+                        else
+                        {
+                            await Task.Delay(timeToWait.Value);
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception(await responseMessage.Content.ReadAsStringAsync());
+                    }
                 }
-                else
-                {
-                    throw new Exception();
-                }
+                    
             }
             else if (method.Method == "PUT")
             {
