@@ -20,8 +20,21 @@ namespace Reverb
         private string clientSecret;
         private string redirectUrl;
         private SpotifyConstants.AuthenticationType authenticationType;
-        
-        public string AccessToken { get; private set; }
+
+        private string accessToken;
+        public string AccessToken
+        {
+            get
+            {
+                return accessToken;
+            }
+
+            set
+            {
+                accessToken = value;
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            }
+        }
         public DateTimeOffset AccessTokenExpiresAt { get; private set; }
         public string RefreshToken { get; private set; }
 
@@ -117,7 +130,6 @@ namespace Reverb
                 RefreshToken = response.RefreshToken;
             }
             AccessToken = response.AccessToken;
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(response.TokenType, AccessToken);
             return AccessToken;
         }
 
@@ -482,6 +494,14 @@ namespace Reverb
             return await MakeAuthorizedSpotifyRequest<SpotifySearch>(url, HttpMethod.Get);
         }
 
+        public async Task<SpotifyCurrentUserProfile> GetCurrentUserProfile()
+        {
+            Url url = new Url(SpotifyConstants.BaseV1ApiUrl)
+                .AppendPathSegment("me");
+
+            return await MakeAuthorizedSpotifyRequest<SpotifyCurrentUserProfile>(url, HttpMethod.Get);
+        }
+
         public async Task<SpotifyPagingObject<T>> GetNextPage<T>(SpotifyPagingObject<T> pagingObject)
         {
             return await MakeAuthorizedSpotifyRequest<SpotifyPagingObject<T>>(pagingObject.Next, HttpMethod.Get);
@@ -507,7 +527,8 @@ namespace Reverb
                 }
                 else
                 {
-                    throw new Exception();
+                    string responseString = await responseMessage.Content.ReadAsStringAsync();
+                    throw new Exception(responseString);
                 }
             }
             else if (method.Method == "PUT")
